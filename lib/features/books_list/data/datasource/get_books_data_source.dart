@@ -4,7 +4,6 @@ import '../../../../base/Endpoint.dart';
 import '../../../../base/data_source.dart';
 import '../model/book_model.dart';
 import 'exceptions/get_books_datasource_exception.dart';
-
 class GetBooksDataSource implements DataSource {
 
   final Dio _dio;
@@ -16,10 +15,10 @@ class GetBooksDataSource implements DataSource {
 
     try {
       var response = await _dio.get<String>(url);
-      Map _json = json.decode(response.data!);
+      List<dynamic> _jsonList = json.decode(response.data!) as List;
 
       var list = List<BookModel>.from(
-          (_json['books'] as List).map((i) => fromJson!(i)).toList());
+          _jsonList.map((i) => fromJson!(i)).toList());
 
       return list;
     } on DioError catch (e) {

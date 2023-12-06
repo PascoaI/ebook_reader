@@ -27,7 +27,7 @@ void main() {
     dataSource = GetBooksDataSource(dio);
 
     response = {
-      'data': [
+      [
         {
           'id': 1,
           'title': 'A',
