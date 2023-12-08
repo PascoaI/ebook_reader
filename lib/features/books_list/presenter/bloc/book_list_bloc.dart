@@ -7,7 +7,6 @@ class BookListBloc {
   BookListBloc(this.usecase);
 
   var _controller = StreamController.broadcast();
-
   Stream get stream => _controller.stream;
 
   var books = [];
@@ -18,6 +17,7 @@ class BookListBloc {
 
     _controller.sink.add(true);
   }
+
 
   dispose() {
     _controller.close();

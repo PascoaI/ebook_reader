@@ -1,13 +1,16 @@
+import 'dart:convert';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:get_it/get_it.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
+import '../../data/model/book_model.dart';
 import '../../domain/entities/book.dart';
 import '../bloc/book_list_bloc.dart';
+import 'book_viewer.dart';
+
+
 enum MenuItem { SAIR }
 
 class BookList extends StatefulWidget {
@@ -24,6 +27,7 @@ class _BookListState extends State<BookList> {
   void initState() {
     _bloc.onLoadBooks();
     _initSharedPreferences();
+    loadFavorites();
     super.initState();
   }
 
@@ -31,7 +35,38 @@ class _BookListState extends State<BookList> {
     _prefs = await SharedPreferences.getInstance();
   }
 
+  List<Book> favorites = [];
 
+  Future<void> saveFavorites() async {
+    final prefs = await SharedPreferences.getInstance();
+    final favoritesJson = jsonEncode(favorites);
+    prefs.setString('favorites', favoritesJson);
+  }
+
+  Future<void> loadFavorites() async {
+    final prefs = await SharedPreferences.getInstance();
+    final favoritesJson = prefs.getString('favorites');
+
+    if (favoritesJson != null) {
+      favorites = (jsonDecode(favoritesJson) as List<dynamic>)
+          .map((item) => BookModel.fromJson(item))
+          .toList();
+    }
+  }
+
+  void _toggleFavorite(int bookId) {
+    bool isFavorite = _prefs.getBool(bookId.toString()) ?? false;
+    _prefs.setBool(bookId.toString(), !isFavorite);
+
+    if (isFavorite) {
+      favorites.removeWhere((book) => book.id == bookId);
+    } else {
+      favorites.add(_bloc.books.firstWhere((book) => book.id == bookId));
+    }
+
+    saveFavorites();
+    setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -68,15 +103,14 @@ class _BookListState extends State<BookList> {
     );
   }
 
-
-
   Widget _buildBooksGrid() {
     return StreamBuilder(
       stream: _bloc.stream,
       builder: (context, snapshot) {
         return GridView.builder(
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2, // 2 livros por linha
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2
+            , // 2 livros por linha
             crossAxisSpacing: 8.0,
             mainAxisSpacing: 8.0,
           ),
@@ -91,8 +125,7 @@ class _BookListState extends State<BookList> {
   }
 
   Widget _buildFavoritesGrid() {
-    // filtra os livros marcados como favoritos com where
-    List favoriteBooks = _bloc.books.where((book) {
+    List favorites = _bloc.books.where((book) {
       return _prefs.getBool(book.id.toString()) ?? false;
     }).toList();
 
@@ -102,9 +135,9 @@ class _BookListState extends State<BookList> {
         crossAxisSpacing: 8.0,
         mainAxisSpacing: 8.0,
       ),
-      itemCount: favoriteBooks.length,
+      itemCount: favorites.length,
       itemBuilder: (context, index) {
-        Book _book = favoriteBooks[index];
+        Book _book = favorites[index];
         return _buildBooksItem(_book);
       },
     );
@@ -114,9 +147,6 @@ class _BookListState extends State<BookList> {
 
     bool isFavorite = _prefs.getBool(book.id.toString()) ?? false;
     return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8.0),
-      ),
       child: Container(
         width: 100,
         child: Column(
@@ -124,14 +154,18 @@ class _BookListState extends State<BookList> {
           children: [
             Stack(
               children: [
-                Container(
-                  height: 120,
-                  decoration: BoxDecoration(
-                    image: DecorationImage(
-                      image: NetworkImage(book.cover_url),
-                      fit: BoxFit.cover,
+                ElevatedButton(
+                  onPressed: () async {
+                    await _downloadAndOpenBook(book.download_url, book.title);
+                    print(book.download_url);
+                    },
+                  child: Container(
+                    height: 120,
+                    decoration: BoxDecoration(
+                      image: DecorationImage(
+                        image: NetworkImage(book.cover_url),
+                      ),
                     ),
-                    borderRadius: BorderRadius.circular(8),
                   ),
                 ),
                 Positioned(
@@ -178,13 +212,20 @@ class _BookListState extends State<BookList> {
     );
   }
 
-  void _toggleFavorite(int bookId) {
-    bool isFavorite = _prefs.getBool(bookId.toString()) ?? false;
-    _prefs.setBool(bookId.toString(), !isFavorite);
-    setState(() {});
+  Future<void> _downloadAndOpenBook(String download_url, String title) async {
+    try {
+      if (!context.mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => BookViewerScreen(download_url, title),
+        ),
+      );
+    } catch (e) {
+      // Handle errors
+      print('Erro ao baixar e abrir o livro: $e');
+    }
   }
-
-
 
   void onSelectedItem(MenuItem value) async {
     switch (value) {
